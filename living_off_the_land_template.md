@@ -26,37 +26,41 @@
 
 ## Related Queries:
 ```kql
-// Installer name == tor-browser-windows-x86_64-portable-(version).exe
-// Detect the installer being downloaded
-DeviceFileEvents
-| where FileName startswith "tor"
-
-// TOR Browser being silently installed
-// Take note of two spaces before the /S (I don't know why)
+// PowerShell file downloaded: themachine.html.ps1
+// Detect a file downloaded
 DeviceProcessEvents
-| where ProcessCommandLine contains "tor-browser-windows-x86_64-portable-14.0.1.exe  /S"
-| project Timestamp, DeviceName, ActionType, FileName, ProcessCommandLine
-
-// TOR Browser or service was successfully installed and is present on the disk
-DeviceFileEvents
-| where FileName has_any ("tor.exe", "firefox.exe")
-| project  Timestamp, DeviceName, RequestAccountName, ActionType, InitiatingProcessCommandLine
-
-// TOR Browser or service was launched
-DeviceProcessEvents
-| where ProcessCommandLine has_any("tor.exe","firefox.exe")
-| project  Timestamp, DeviceName, AccountName, ActionType, ProcessCommandLine
-
-// TOR Browser or service is being used and is actively creating network connections
-DeviceNetworkEvents
-| where InitiatingProcessFileName in~ ("tor.exe", "firefox.exe")
-| where RemotePort in (9001, 9030, 9040, 9050, 9051, 9150)
-| project Timestamp, DeviceName, InitiatingProcessAccountName, InitiatingProcessFileName, RemoteIP, RemotePort, RemoteUrl
+| where DeviceName == target_machine
+| where AccountName == "training-vm-1186"
+| where Timestamp >=  datetime(2025-04-03)
+| where InitiatingProcessFileName in ("cmd.exe")
+| project Timestamp, DeviceName, AccountName, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine
 | order by Timestamp desc
 
-// User shopping list was created and, changed, or deleted
 DeviceFileEvents
-| where FileName contains "shopping-list.txt"
+| where DeviceName startswith target_machine
+| where ActionType in ("FileCreated", "FileRenamed")
+| where Timestamp >=  datetime(2025-04-03)
+| where FolderPath contains "Downloads"
+| project Timestamp, DeviceName, ActionType, FileName, FolderPath, SHA256, Account = InitiatingProcessAccountName
+| order by Timestamp desc
+
+//Detect task created in System32 folder
+DeviceFileEvents
+| where DeviceName startswith target_machine
+| where ActionType in ("FileCreated", "FileRenamed")
+| where Timestamp >=  datetime(2025-04-03)
+| where FolderPath contains "System32"
+| project Timestamp, DeviceName, ActionType, FileName, FolderPath, SHA256, Account = InitiatingProcessAccountName
+| order by Timestamp desc
+
+// Detects notepad executing and writing a message to it
+DeviceProcessEvents
+| where DeviceName == target_machine
+| where AccountName == "training-vm-1186"
+| where Timestamp >=  datetime(2025-04-03)
+| where InitiatingProcessFileName in ("powershell.exe")
+| project Timestamp, DeviceName, AccountName, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine
+| order by Timestamp desc
 ```
 
 ---
