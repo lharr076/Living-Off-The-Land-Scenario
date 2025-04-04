@@ -1,116 +1,143 @@
-<img width="400" src="https://github.com/lharr076/insider-threat-scenario/blob/main/assests/insider_threat_image.jpg" alt="Insider Threat image"/>
+<img width="400" src="https://github.com/lharr076/Living-Off-The-Land-Scenario/blob/main/assests/sys-hacked-img.jpg" alt="Living Off The Land image"/>
 
-# Threat Hunt Report: Insider Threat
-- [Scenario Creation](https://github.com/lharr076/insider-threat-scenario/blob/main/insider_threat_exfil_sensitve_data_template.md)
+# Threat Hunt Report: Living Off The Land(LOTL)
+- [Scenario Creation](https://github.com/lharr076/Living-Off-The-Land-Scenario/blob/main/living_off_the_land_template.md)
 
 ## Platforms and Languages Leveraged
 - Windows 10 Virtual Machines (Microsoft Azure)
 - EDR Platform: Microsoft Defender for Endpoint
 - Kusto Query Language (KQL)
-- Microsoft Outlook
+- PowerShell
+- Command Line Interface (CLI)
+- Github
+
+---
 
 ##  Scenario
 
-Management suspects that an employee may be exfiltrating PII data via email. Additionally, there have been anonymous reports of the employee being disgruntled after performance evaluation. The goal is to detect any files or folders that have been created and/or moved and analyze related security incidents to mitigate potential risks. If any data is found, notify management.
+An employee arrives to work after the weekend and starts their PC. After logging on and stepping away from the computer, the employee notice notepad is open and has a message quoting a song from Pink Floyd that says, "`Hello my son Welcome to the machine`". Thinking it was a joke from one of the other staff members, the employee closes out the notepad message and proceeds with their day. The following day the employee did not step away from the computer after logon and after a few minutes of being logged on, the message pops up again. The employee contacts their first line supervisor of the incident and with the supervisor performing a restart of the machine, the supervisor also witnessed this message come across the employees screen. The goal is to detect any files or folders that have been created and/or moved and analyze related security incidents to mitigate potential risks. If any data is found, notify management.
 
 ### High-Level Insider Threat IoC Discovery Plan
 
-- **Check `DeviceFileEvents`** for any `PII` file events.
-- **Check `DeviceProcessEvents`** for any signs of Microsoft Outlook usage.
+- **Check `DeviceFileEvents`** for any files downloaded, created, or moved.
+- **Check `DeviceProcessEvents`** for any signs of the command line interface (CLI) or PowerShell usage.
 
 ---
 
 ## Steps Taken
 
-### 1. Searched the `DeviceFileEvents` Table
+### 1. Searched the `DeviceProcessEvents` and `DeviceFileEvents` Tables For Relevant Events to Command Line Interface (CLI) and Files Downloaded
 
-Searched for any file that had the string "PII" in it and discovered what looks like the user "employee" created a PII file in Notepad, moved the file into a folder called PII on the desktop, and then created a zip file called `PII.zip` in the Windows Temp folder at `2025-03-25T10:41:03`. These events began at `2025-03-25T10:32:22`.
+Searched for any processes utilizing the command line interface (CLI) and at `2025-04-03T12:07:18` a command was ran to download a file from a remote location using `PowerShell`. The command uses `-ExecutionPolicy Bypass` to override the machine current execution policy. The command also performs the download silently using `WindowsStyle Hidden`. The file in question is `https://raw.githubusercontent.com/lharr076/Living-Off-The-Land-Scenario/refs/heads/main/assests/themachine.html.ps1` and the location of the download is `C:\Users\Training-vm-1186\Downloads\themachine.html.ps1` at `2025-04-03T12:07:23`. The file is a `PowerShell` script dressed as a `HTML` file. These events began at `2025-04-03T12:07:18`.
 
-**Query used to locate events:**
+**Querys used to locate events:**
 
 ```kql
+DeviceProcessEvents
+| where DeviceName == target_machine
+| where AccountName == "training-vm-1186"
+| where Timestamp >=  datetime(2025-04-03)
+| where InitiatingProcessFileName in ("cmd.exe")
+| project Timestamp, DeviceName, AccountName, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine
+| order by Timestamp desc
+
 DeviceFileEvents
-| where DeviceName startswith target_machine
-| where FileName contains "PII"
+| where DeviceName StartsWith target_machine
 | where ActionType in ("FileCreated", "FileRenamed")
+| where Timestamp >=  datetime(2025-04-03)
+| where FolderPath contains "Downloads"
 | project Timestamp, DeviceName, ActionType, FileName, FolderPath, SHA256, Account = InitiatingProcessAccountName
 | order by Timestamp desc
 ```
-<img width="1212" alt="image" src="https://github.com/lharr076/insider-threat-scenario/blob/main/assests/DeviceFileEvents.jpg">
+<img width="1212" alt="LOTL DeviceProcessEvents1" src="https://github.com/lharr076/Living-Off-The-Land-Scenario/blob/main/assests/DeviceProcessEvents1.jpg">
+
+<img width="1212" alt="LOTL DeviceFileEvents1" src="https://github.com/lharr076/Living-Off-The-Land-Scenario/blob/main/assests/DeviceFileEvents1.jpg">
 
 ---
 
-### 2. Searched the `DeviceProcessEvents` Table
+### 2. Searched the `DeviceFileEvents` Table For Relevant Events to System32
 
-Searched for any `ProcessCommandLine` that contained the string "olk.exe". Based on the logs returned, at `2025-03-25T05:48:35`, an employee on the "training-vm-118" device ran `olk.exe` which is Microsoft Outlook outside operation hours of the company. Between `2025-03-25T10:34:32` and `2025-03-25T10:37:09` multiple Outlook processes are created possibly signaling preparation for exfiltration. At `2025-03-25T18:40:54` the `olk.exe` process is created again afterhours.
+Searched in the `FolderPath` that contained the string "System32". Based on the logs returned, at `2025-04-03T12:07:24`, a task is created within the `System32\Tasks` folder called `StartNotepadWithDelay` signaling an event involving `notepad` will happen after some time passes.
 
 **Query used to locate event:**
 
 ```kql
+DeviceFileEvents
+| where DeviceName StartsWith target_machine
+| where ActionType in ("FileCreated", "FileRenamed")
+| where Timestamp >=  datetime(2025-04-03)
+| where FolderPath contains "System32"
+| project Timestamp, DeviceName, ActionType, FileName, FolderPath, SHA256, Account = InitiatingProcessAccountName
+| order by Timestamp desc
 
+
+```
+
+<img width="1212" alt="DeviceFileEvents2" src="https://github.com/lharr076/Living-Off-The-Land-Scenario/blob/main/assests/DeviceFileEvents2.jpg">
+
+---
+
+### 3. Searched the `DeviceProcessEvents` Table For Relevant Events to PowerShell 
+
+Searched for an `InitiatingProcessFileName` that contained in `PowerShell`. Based on the logs returned, at `2025-04-04T09:34:07`, `notepad.exe` is executed by `powershell.exe` with the command (-Command `"Start-Process notepad.exe; Start-Sleep -Seconds 2; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('Hello my son{ENTER}Welcome to the machine{ENTER}')`)
+
+**Query used to locate event:**
+
+```kql
 DeviceProcessEvents
 | where DeviceName == target_machine
-| where FileName == "olk.exe"
-| project Timestamp, DeviceName, AccountName, ActionType, FileName, FolderPath, SHA256, ProcessCommandLine
+| where AccountName == "training-vm-1186"
+| where Timestamp >=  datetime(2025-04-03)
+| where InitiatingProcessFileName in ("powershell.exe")
+| project Timestamp, DeviceName, AccountName, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine
 | order by Timestamp desc
+
+
 ```
-<img width="1212" alt="image" src="https://github.com/lharr076/insider-threat-scenario/blob/main/assests/DeviceProcessEvents.jpg">
+<img width="1212" alt="DeviceProcessEvents2" src="https://github.com/lharr076/Living-Off-The-Land-Scenario/blob/main/assests/DeviceProcessEvents2.jpg">
 
 ---
 
 ## Chronological Event Timeline 
 
-### 1. File Created - PII Data Text File
+### 1. File Downloaded - Malicious File downloaded from remote location
 
-- **Timestamp:** `2025-03-25T10:33:01`
-- **Event:** The user "Training-vm-1186" created a file named `PII Data.txt` to the Documents folder.
+- **Timestamp:** `2025-04-03T12:07:18`
+- **Event:** The PC user "Training-vm-1186" executed a command to download a file named `themachine.html.ps1` from a remote location.
+- **Action:** File download detected.
+
+
+### 2. File Created - File Created in Downloads Folder
+
+- **Timestamp:** `2025-04-03T12:07:23`
+- **Event:** The file `themachine.html.ps1` was created in the Downloads folder.
 - **Action:** File creation detected.
-- **File Path:** `C:\Users\Training-vm-1186\Documents\Fake PII Data.txt`
+- **File Path:** `C:\Users\Training-vm-1186\Downloads\themachine.html.ps1`t`
 
-### 2. Folder Created - PII Folder 
+### 3. Scheduled Task Creation - StartNotepadWithDelay Task Created
 
-- **Timestamp:** `2025-03-25T10:33:34`
-- **Event:** The user "Training-vm-1186" created folder `PII` on the desktop and moved the `PII Data.txt` file into the folder.
-- **Action:** Folder creation detected.
-- **File Path:** `C:\Users\Training-vm-1186\Desktop\Fake PII\Fake PII Data.txt`
+- **Timestamp:** `2025-04-03T12:07:24`
+- **Event:** A task named `StartNotepadWithDelay` was created in the `System32\Tasks` folder.
+- **Action:** Task creation detected. 
+- **File Path:** `C:\Windows\System32\Tasks\StartNotepadWithDelay`
 
-### 3. Zip File Creation - PII.zip
+### 4. Task Execution - Task Executed via PowerShell
 
-- **Timestamp:** `2025-03-25T10:41:03`
-- **Event:** User "Training-vm-1186" created zip file `PII.zip` in Temp folder in attempt to hide actions. 
-- **Action:** Zip file created.
-- **File Path:** `C:\Windows\Temp\Fake PII.zip`
+- **Timestamp:** `2025-04-04T09:34:07`
+- **Event:** Two minutes after logon, a task named `StartNotepadWithDelay` was executed via PowerShell.
+- **Action:** Execution success.
+- **Process:** `powershell.exe`, `notepad.exe`
 
-### 4. Email Use Outside Operational Hours - Microsoft Outlook Activity
-
-- **Timestamp:** `2025-03-25T05:48:35`
-- **Event:** An email operation by user "Training-vm-1186" was established using `olk.exe`, confirming Microsoft Outlook activity after hours.
-- **Action:** Connection success.
-- **Process:** `olk.exe`
-- **File Path:** `C:\Program Files\WindowsApps\Microsoft.OutlookForWindows_1.2025.312.0_x64__8wekyb3d8bbwe\olk.exe`
-
-### 5. Additional Email Activity - Microsoft Outlook Activity
-
-- **Timestamps:** From `2025-03-25T10:34:32` to `2025-03-25T10:37:09`
-- **Event:** Additional email activity was conducted, indicating ongoing activity by user "Training-vm-1186" through Microsoft Outlook.
-- **Action:** Microsoft Outlook login successful.
-
-### 6. Additional Email Activity - Microsoft Outlook Activity
-
-- **Timestamps:** `2025-03-25T18:40:54`
-- **Event:** An email operation by user "Training-vm-1186" was established using `olk.exe`, confirming Microsoft Outlook activity after hours.
-- **Action:** Microsoft Outlook login successful.
-- **File Path:** `C:\Program Files\WindowsApps\Microsoft.OutlookForWindows_1.2025.319.100_x64__8wekyb3d8bbwe\olk.exe`
 ---
 
 ## Summary
 
-The user "Training-vm-1186" on the "training-vm-118" performed data exfiltration. They proceeded to create a PII file in notepad called `PII Data.txt`, created a folder called `PII` on the desktop , moved and created a zip file in the Windows Temp folder, and exfiltrate via Microsoft Outlook email. This sequence of activities indicates that the user actively copied and exfiltrated company PII data via Microsoft Outlook.
+The employee utilizing the machine "training-vm-118" experienced `Remote Code Execution exploiting` `Living Off The Land` utilizing tools that are default to Windows. The attacker utilized the command line (CLI) to silently download a malicious file called `themachine.html.ps1` from a remote location. The file is a `PowerShell` script dressed as a `HTML` file. Within the same command, the attacker was also able to  run the `PowerShell` script to create a task in the `System32\Tasks` folder called `StartNotepadWithDelay`. Two minutes after logon, the task `StartNotepadWithDelay` executes the script, `"Start-Process notepad.exe; Start-Sleep -Seconds 2; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('Hello my son{ENTER}Welcome to the machine{ENTER}')` every time the employee logs on.
 
 ---
 
 ## Response Taken
 
-Data exfiltration was confirmed on the endpoint `training-vm-118` by the user `Training-vm-1186`. The device was isolated, and the user's direct manager was notified.
+The device was isolated and the persistent task was removed along with the malicious file. The device was swept for any other attack vectors that can be exploited and a friendly reminder was sent to the employee about security best practices to ensure the employee is following them. The employee's direct manager was notified about the incident.
 
 ---
