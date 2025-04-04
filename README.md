@@ -79,7 +79,7 @@ DeviceFileEvents
 
 ### 3. Searched the `DeviceProcessEvents` Table For Relevant Events to PowerShell 
 
-Searched for an `InitiatingProcessFileName` that contained in `PowerShell`. Based on the logs returned, at `2025-04-04T09:34:07`, `notepad.exe` is executed by `powershell.exe` with the command (-Command `"Start-Process notepad.exe; Start-Sleep -Seconds 2; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('Hello my son{ENTER}Welcome to the machine{ENTER}')`)
+Searched for an `InitiatingProcessFileName` that contained in `PowerShell`. Based on the logs returned, at `2025-04-04T09:34:07`, `notepad.exe` is executed by `powershell.exe` with the command (-Command `"Start-Process notepad.exe; Start-Sleep -Seconds 2; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('Hello my son{ENTER}Welcome to the machine{ENTER}')`).
 
 **Query used to locate event:**
 
